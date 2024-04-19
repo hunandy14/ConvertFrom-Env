@@ -18,6 +18,7 @@ function ConvertFrom-Env {
             if ($line -match "^\s*([^#=]+?)\s*=\s*(.*)$") {
                 $key = $matches[1].Trim()
                 $value = $matches[2]
+                $addFlag = $true
                 if ($value -match '^"(.*)"$') {
                     # 處理雙引號包圍的值並展開字符串
                     $value = $matches[1] -replace '\\n', "`n" -replace '\\r', "`r" -replace '\\t', "`t"
@@ -28,9 +29,35 @@ function ConvertFrom-Env {
                 } else {
                     $value = $value.Trim()
                 }
+                
+                # 如果鍵值以 $env: 開頭，則將其設定到當前 PowerShell 環境變數中
+                if ($key -match "^\`$env:(.+)$") {
+                    $addFlag = $false
+                    $envKey = $matches[1]
+                    $envValue = $value
+                    # 過濾 $envKey 有帶加號結尾的
+                    if ($envKey -match '^(.*?)\s*\+$') {
+                        $envKey = $matches[1]
+                        $currentValue = [Environment]::GetEnvironmentVariable($envKey, [EnvironmentVariableTarget]::Process)
+                        # 如果已有值存在則串接
+                        if (![string]::IsNullOrWhiteSpace($currentValue)) {
+                            if ($currentValue -like "*$envValue*") {
+                                $envValue = $currentValue
+                            } else {
+                                $envValue = "$envValue;$currentValue"
+                            }
+                        }
+                    }
+                    # 更新環境變數
+                    if ($currentValue -ne $envValue) {
+                        [Environment]::SetEnvironmentVariable($envKey, $envValue, [EnvironmentVariableTarget]::Process)
+                    }
+                }
     
                 # 將解析後的鍵值對加入字典
-                $envVariables[$key] = $value
+                if ($addFlag) {
+                    $envVariables[$key] = $value
+                }
             }
         }
     }
@@ -66,4 +93,4 @@ function ConvertFrom-Env {
         }
     } # $envVariables = [PSCustomObject]$envVariables
     return $envVariables
-} # ConvertFrom-Env 
+} # ConvertFrom-Env
