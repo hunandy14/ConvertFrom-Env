@@ -18,11 +18,11 @@ function ConvertFrom-Env {
             if ($line -match "^\s*([^#=]+?)\s*=\s*(.*)$") {
                 $key = $matches[1].Trim()
                 $value = $matches[2]
-                if ($value -match '^"(.+)"$') {
+                if ($value -match '^"(.*)"$') {
                     # 處理雙引號包圍的值並展開字符串
                     $value = $matches[1] -replace '\\n', "`n" -replace '\\r', "`r" -replace '\\t', "`t"
                     $value = $ExecutionContext.InvokeCommand.ExpandString($value)
-                } elseif ($value -match "^'(.+)'$") {
+                } elseif ($value -match "^'(.*)'$") {
                     # 處理單引號包圍的值
                     $value = $matches[1]
                 } else {
