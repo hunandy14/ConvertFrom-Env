@@ -3,7 +3,7 @@ function ConvertFrom-Env {
     param (
         [string[]]$EnvFiles = @(".env", ".env.development", ".env.production"),
         [System.Text.Encoding]$Encoding = [System.Text.Encoding]::Default
-    )
+    ) [IO.Directory]::SetCurrentDirectory(((Get-Location -PSProvider FileSystem).ProviderPath))
 
     # 使用有序字典保持讀取的順序
     $envVariables = [Ordered]@{}
@@ -21,8 +21,7 @@ function ConvertFrom-Env {
                 $addFlag = $true
                 if ($value -match '^"(.*)"$') {
                     # 處理雙引號包圍的值並展開字符串
-                    $value = $matches[1] -replace '\\n', "`n" -replace '\\r', "`r" -replace '\\t', "`t"
-                    $value = $ExecutionContext.InvokeCommand.ExpandString($value)
+                    $value = $ExecutionContext.InvokeCommand.ExpandString($matches[1])
                 } elseif ($value -match "^'(.*)'$") {
                     # 處理單引號包圍的值
                     $value = $matches[1]
@@ -35,6 +34,17 @@ function ConvertFrom-Env {
                     $addFlag = $false
                     $envKey = $matches[1]
                     $envValue = $value
+                    
+                    # 針對環境變數Path檢查路徑，並轉換成絕對路徑
+                    if ($envKey.trim("+").trim() -eq "Path") {
+                        if (Test-Path $envValue -PathType Container) {
+                            $envValue = [IO.Path]::GetFullPath($envValue )
+                        } else {
+                            Write-Host "WARNING: 設置的環境變數 `$env:Path 中的路徑 $envValue 不存在" -ForegroundColor Yellow
+                            return
+                        }
+                    }
+                    
                     # 過濾 $envKey 有帶加號結尾的
                     if ($envKey -match '^(.*?)\s*\+$') {
                         $envKey = $matches[1]
@@ -48,8 +58,10 @@ function ConvertFrom-Env {
                             }
                         }
                     }
+                    
                     # 更新環境變數
                     if ($currentValue -ne $envValue) {
+                        # Write-Host "[OK]" -BackgroundColor Green -NoNewline; Write-Host "`$env:$envKey = $envValue" -ForegroundColor DarkGray
                         [Environment]::SetEnvironmentVariable($envKey, $envValue, [EnvironmentVariableTarget]::Process)
                     }
                 }
